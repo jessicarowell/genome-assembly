@@ -6,14 +6,12 @@ use File::Basename;
 use File::Temp;
 
 my $script = basename($0);  
-my ($inDir, $outDir);
+my ($inDir, $outDir, $outDirF);
+my ($fastqc, $quiet);
 
-if (@ARGV < 1){
-	usage(); exit 1;
-} 	
+if (@ARGV < 1) { usage(); exit 1; } 	
 
-GetOptions ('o=s' => \$outDir, 
-			'in=s' => \$inDir);
+GetOptions ('o=s' => \$outDir, 'in=s' => \$inDir, 'f' => \$fastqc, 'f_out' => \$outDirF, 'q' => \$quiet);
 			
 die usage() unless ((defined $outDir) && (defined $inDir));
 
@@ -25,15 +23,38 @@ for ($i = 0; $i < @list; $i += 2){
 	$base =~ s/_R.\.fastq\.gz//g;
 	my $r1 = join('_',$base,"R1.fastq.gz");
 	my $r2 = join('_',$base,"R2.fastq.gz");
-	my $r1b = basename($r1);  
+	my $r1b = basename($r1);
 	my $r2b = basename($r2);
 	print "Trimming: $r1b and $r2b\n";
-	`trim_galore --illumina --clip_R1 18 --clip_R2 18 --three_prime_clip_R1 5 --three_prime_clip_R2 5 --no_report_file  --length 100 --paired $r1  $r2 -o $outDir 2>$outDir/trim_galore.log`;
+	if ($fastqc && $quiet) { quiet_fastqc($r1, $r2); }
+	if ($fastqc) { fastqc($r1, $r2); }
+	if ($quiet) { quiet($r1, $r2); }
+	else {
+		print "simple mode\n";
+		`trim_galore --illumina --clip_R1 18 --clip_R2 18 --three_prime_clip_R1 5 --three_prime_clip_R2 5 --length 75 --paired $r1  $r2 -o $outDir 2>$outDir/trim_galore.log`;
+	}
 }
 
 exit;
 
+sub quiet{
+	my ($r1, $r2) = ($_[0], $_[1]);
+	`trim_galore --illumina --clip_R1 18 --clip_R2 18 --three_prime_clip_R1 5 --three_prime_clip_R2 5 --no_report_file --length 75 --paired $r1  $r2 -o $outDir 2>$outDir/trim_galore.log`;
+	next;
+}
 
+sub fastqc{
+	my ($r1, $r2) = ($_[0], $_[1]);
+	`trim_galore --illumina --fastqc --fastqc_args "-o $outDirF" --clip_R1 18 --clip_R2 18 --three_prime_clip_R1 5 --three_prime_clip_R2 5 --length 75 --paired $r1  $r2 -o $outDir 2>$outDir/trim_galore.log`;
+	next;
+}
+	
+sub quiet_fastqc{
+	my ($r1, $r2) = ($_[0], $_[1]);
+	`trim_galore --illumina --fastqc --fastqc_args "-o $outDirF" --clip_R1 18 --clip_R2 18 --three_prime_clip_R1 5 --three_prime_clip_R2 5 --no_report_file  --length 75 --paired $r1  $r2 -o $outDir 2>$outDir/trim_galore.log`;
+	next;
+}
+	
 sub usage{
     warn <<"EOF";
 USAGE
